@@ -9,7 +9,7 @@ body { font-family: Arial; background:#f0f2f5; text-align:center; padding:2em; }
 h1 { color:#222; font-size:2.5em; margin-bottom:0.5em; }
 p { font-size:1.2em; margin-bottom:1.5em; }
 input, button { padding:10px; font-size:1em; margin:5px; }
-#screen { border:1px solid #000; width:800px; height:450px; margin-top:20px; }
+#screen { border:1px solid #000; width:800px; height:450px; margin-top:20px; cursor:pointer; }
 a.button { display:inline-block; padding:10px 20px; margin:5px; background:#007bff; color:#fff; text-decoration:none; border-radius:6px; }
 a.button:hover { background:#0056b3; }
 footer { margin-top:2em; font-size:0.9em; color:#555; }
@@ -38,24 +38,41 @@ let ws;
 let img = document.getElementById("screen");
 
 function connect() {
-    const ip = document.getElementById("ip").value;
+    const ip = document.getElementById("ip").value.trim();
     if(!ip) { alert("Enter a valid IP"); return; }
 
-    ws = new WebSocket(`ws://${ip}:8080`);
+    const url = `ws://${ip}:8080`;
+    try {
+        ws = new WebSocket(url);
+    } catch (err) {
+        alert("Failed to create WebSocket: " + err);
+        return;
+    }
 
     ws.onopen = () => {
-        console.log("Connected to Mischo Agent");
+        console.log("Connected to Mischo Agent at " + url);
         updateScreen();
     };
 
-    ws.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
-        if(data.type === "screenshot") {
-            img.src = "data:image/jpeg;base64," + data.data;
-        }
+    ws.onclose = () => {
+        console.log("WebSocket closed. Try reconnecting.");
     };
 
-    ws.onerror = () => { alert("Failed to connect. Make sure Mischo Agent is running and IP is correct."); };
+    ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        alert("Failed to connect. Make sure Mischo Agent is running and IP is correct.");
+    };
+
+    ws.onmessage = (msg) => {
+        try {
+            const data = JSON.parse(msg.data);
+            if(data.type === "screenshot") {
+                img.src = "data:image/jpeg;base64," + data.data;
+            }
+        } catch (e) {
+            console.error("Failed to parse message:", e);
+        }
+    };
 }
 
 function updateScreen() {
@@ -65,7 +82,7 @@ function updateScreen() {
     }
 }
 
-// Simple click control
+// Klick-Steuerung
 img.addEventListener("click", e => {
     if(ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({action:"click"}));
