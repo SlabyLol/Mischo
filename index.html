@@ -1,23 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Mischo Remote</title>
-<link rel="stylesheet" href="style.css">
+<title>Mischo Remote Control</title>
+<style>
+  body { font-family: Arial; text-align:center; background:#f0f2f5; }
+  #screen { border:1px solid #000; width:800px; height:450px; }
+</style>
 </head>
-
 <body>
-
-<h1>Mischo Remote Desktop</h1>
-
-<input id="ip" placeholder="IP eingeben">
-<button onclick="connect()">Verbinden</button>
-
+<h1>Mischo Remote Control</h1>
+<p>Enter the IP of the device running Mischo Agent:</p>
+<input type="text" id="ip" placeholder="YOUR-IP">
+<button onclick="connect()">Connect</button>
 <br><br>
+<img id="screen" src="">
+<script>
+let ws;
+let img = document.getElementById("screen");
 
-<canvas id="screen"></canvas>
+function connect() {
+    const ip = document.getElementById("ip").value;
+    ws = new WebSocket(`ws://${ip}:8080`);
+    ws.onopen = () => { console.log("Connected"); updateScreen(); };
+    ws.onmessage = (msg) => {
+        const data = JSON.parse(msg.data);
+        if(data.type === "screenshot") {
+            img.src = "data:image/jpeg;base64," + data.data;
+        }
+    };
+}
 
-<script src="mischo.js"></script>
+function updateScreen() {
+    if(ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({action:"screenshot"}));
+        setTimeout(updateScreen, 1000); // update every second
+    }
+}
 
+img.addEventListener("click", e => {
+    if(ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({action:"click"}));
+    }
+});
+</script>
 </body>
 </html>
