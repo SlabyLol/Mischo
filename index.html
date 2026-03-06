@@ -5,7 +5,7 @@
 <title>Mischo Remote Desktop</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { font-family: Arial; background:#f0f2f5; text-align:center; padding:2em; }
+body { font-family: Arial, sans-serif; background:#f0f2f5; text-align:center; padding:2em; }
 h1 { color:#222; font-size:2.5em; margin-bottom:0.5em; }
 p { font-size:1.2em; margin-bottom:1.5em; }
 input, button { padding:10px; font-size:1em; margin:5px; }
@@ -17,17 +17,12 @@ footer { margin-top:2em; font-size:0.9em; color:#555; }
 </head>
 <body>
 <h1>Mischo Remote Desktop</h1>
-<p>Download installers, control your remote machine, or visit the website for instructions.</p>
+<p>Control your remote machine via browser. Enter the IP of the device running Mischo Agent below.</p>
 
-<!-- Installer Downloads -->
-<a class="button" href="https://github.com/SlabyLol/MischoINST/raw/main/windows/installmischo.bat" download>Windows Installer</a>
-<a class="button" href="https://github.com/SlabyLol/MischoINST/raw/main/linuxdebian/installer.sh" download>Linux Installer</a>
-
-<!-- Link to MischoINST website -->
+<!-- Link to MischoINST Website -->
 <a class="button" href="https://slabylol.github.io/MischoINST/" target="_blank">Go to MischoINST Website</a>
 
 <h2>Browser Remote Control</h2>
-<p>Enter the IP of the device running Mischo Agent:</p>
 <input type="text" id="ip" placeholder="YOUR-IP">
 <button onclick="connect()">Connect</button>
 <br><br>
@@ -37,11 +32,12 @@ footer { margin-top:2em; font-size:0.9em; color:#555; }
 let ws;
 let img = document.getElementById("screen");
 
+// Connect to Mischo Agent via WSS
 function connect() {
     const ip = document.getElementById("ip").value.trim();
     if(!ip) { alert("Enter a valid IP"); return; }
 
-    const url = `ws://${ip}:8080`;
+    const url = `wss://${ip}:8080`;  // WSS for HTTPS pages
     try {
         ws = new WebSocket(url);
     } catch (err) {
@@ -54,38 +50,46 @@ function connect() {
         updateScreen();
     };
 
-    ws.onclose = () => {
-        console.log("WebSocket closed. Try reconnecting.");
-    };
-
-    ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
-        alert("Failed to connect. Make sure Mischo Agent is running and IP is correct.");
-    };
+    ws.onclose = () => console.log("WebSocket closed. Try reconnecting.");
+    ws.onerror = (err) => alert("Failed to connect. Make sure Mischo Agent is running and IP is correct.");
 
     ws.onmessage = (msg) => {
         try {
             const data = JSON.parse(msg.data);
-            if(data.type === "screenshot") {
-                img.src = "data:image/jpeg;base64," + data.data;
-            }
+            if(data.type === "screenshot") img.src = "data:image/jpeg;base64," + data.data;
         } catch (e) {
             console.error("Failed to parse message:", e);
         }
     };
 }
 
+// Update screenshot every second
 function updateScreen() {
     if(ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({action:"screenshot"}));
-        setTimeout(updateScreen, 1000); // Update every second
+        setTimeout(updateScreen, 1000);
     }
 }
 
-// Klick-Steuerung
+// Click handling
 img.addEventListener("click", e => {
+    if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({action:"click"}));
+});
+
+// Optional: move mouse by clicking
+img.addEventListener("mousemove", e => {
     if(ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({action:"click"}));
+        const rect = img.getBoundingClientRect();
+        const x = Math.floor(e.clientX - rect.left);
+        const y = Math.floor(e.clientY - rect.top);
+        ws.send(JSON.stringify({action:"move_mouse", x:x, y:y}));
+    }
+});
+
+// Optional: type text
+document.addEventListener("keydown", e => {
+    if(ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({action:"type", text:e.key}));
     }
 });
 </script>
